@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>local-nural-net</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --panel: #1a2332;
+      --text: #e7ecf3;
+      --muted: #8b9bb4;
+      --accent: #3d9cf0;
+      --good: #3ecf8e;
+      --warn: #e6a23c;
+      --border: #2a3548;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1c2a40, var(--bg));
+      color: var(--text);
+      min-height: 100vh;
+    }
+    main {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 2.5rem 1.25rem 3rem;
+    }
+    h1 {
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      font-weight: 600;
+      font-size: 1.5rem;
+      letter-spacing: -0.02em;
+      margin: 0 0 0.35rem;
+    }
+    .sub { color: var(--muted); margin-bottom: 1.75rem; font-size: 0.95rem; }
+    section {
+      background: color-mix(in srgb, var(--panel) 92%, black);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.1rem 1.2rem;
+      margin-bottom: 1rem;
+    }
+    label {
+      display: block;
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 0.35rem;
+    }
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: end;
+      margin-bottom: 0.85rem;
+    }
+    .field { flex: 1 1 120px; }
+    input, textarea {
+      width: 100%;
+      background: #0d121a;
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 6px;
+      padding: 0.55rem 0.65rem;
+      font: inherit;
+    }
+    textarea { min-height: 110px; resize: vertical; font-family: ui-monospace, monospace; font-size: 0.85rem; }
+    button {
+      border: 0;
+      border-radius: 6px;
+      padding: 0.6rem 1rem;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      background: var(--accent);
+      color: #061018;
+    }
+    button.secondary { background: #2b3648; color: var(--text); }
+    button.danger { background: #c44b4b; color: #fff; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 0.75rem;
+      margin-bottom: 0.5rem;
+    }
+    .stat {
+      background: #121925;
+      border-radius: 6px;
+      padding: 0.65rem 0.75rem;
+    }
+    .stat .k { font-size: 0.75rem; color: var(--muted); }
+    .stat .v { font-family: ui-monospace, monospace; font-size: 1.05rem; margin-top: 0.2rem; }
+    .pill {
+      display: inline-block;
+      padding: 0.15rem 0.55rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .pill.on { background: color-mix(in srgb, var(--good) 25%, transparent); color: var(--good); }
+    .pill.off { background: #2a3140; color: var(--muted); }
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: ui-monospace, monospace;
+      font-size: 0.9rem;
+      line-height: 1.45;
+      background: #0d121a;
+      border-radius: 6px;
+      padding: 0.85rem;
+      border: 1px solid var(--border);
+      min-height: 3.5rem;
+    }
+    .err { color: #ff8d8d; font-size: 0.85rem; margin-top: 0.5rem; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>local-nural-net</h1>
+    <p class="sub">Keep training the same nurons — run more epochs anytime, then sample text.</p>
+
+    <section>
+      <div class="stats">
+        <div class="stat">
+          <div class="k">Status</div>
+          <div class="v"><span id="running" class="pill off">idle</span></div>
+        </div>
+        <div class="stat">
+          <div class="k">Total epochs</div>
+          <div class="v" id="epochs">0</div>
+        </div>
+        <div class="stat">
+          <div class="k">Last loss</div>
+          <div class="v" id="loss">—</div>
+        </div>
+        <div class="stat">
+          <div class="k">Vocab</div>
+          <div class="v" id="vocab">—</div>
+        </div>
+      </div>
+      <div id="error" class="err" hidden></div>
+    </section>
+
+    <section>
+      <div class="row">
+        <div class="field">
+          <label for="epochsInput">Epochs this run</label>
+          <input id="epochsInput" type="number" min="1" value="20" />
+        </div>
+        <div class="field">
+          <label for="lrInput">Learning rate</label>
+          <input id="lrInput" type="number" min="0.001" step="0.05" value="0.3" />
+        </div>
+      </div>
+      <div class="row">
+        <button id="trainBtn" type="button">Train more</button>
+        <button id="stopBtn" class="danger" type="button" disabled>Stop</button>
+        <button id="resetBtn" class="secondary" type="button">Reset weights</button>
+      </div>
+    </section>
+
+    <section>
+      <div class="row">
+        <div class="field">
+          <label for="seedInput">Seed</label>
+          <input id="seedInput" value="hell" />
+        </div>
+        <div class="field">
+          <label for="lenInput">Length</label>
+          <input id="lenInput" type="number" min="1" value="60" />
+        </div>
+      </div>
+      <div class="row">
+        <button id="genBtn" class="secondary" type="button">Generate</button>
+      </div>
+      <pre id="output">—</pre>
+    </section>
+
+    <section>
+      <label for="corpusInput">Corpus (resets weights when saved)</label>
+      <textarea id="corpusInput"></textarea>
+      <div class="row" style="margin-top:0.75rem;margin-bottom:0">
+        <button id="corpusBtn" class="secondary" type="button">Save corpus</button>
+      </div>
+    </section>
+  </main>
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    async function api(path, opts) {
+      const res = await fetch(path, {
+        headers: { "Content-Type": "application/json" },
+        ...opts,
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || res.statusText);
+      }
+      return res.json();
+    }
+
+    function render(status) {
+      const on = status.running;
+      const pill = $("running");
+      pill.textContent = on ? "training" : "idle";
+      pill.className = "pill " + (on ? "on" : "off");
+      $("epochs").textContent = status.totalEpochs;
+      $("loss").textContent = status.lastLoss == null ? "—" : status.lastLoss.toFixed(4);
+      $("vocab").textContent = status.vocabSize;
+      $("trainBtn").disabled = on;
+      $("stopBtn").disabled = !on;
+      $("resetBtn").disabled = on;
+      $("corpusBtn").disabled = on;
+      if (status.error) {
+        $("error").hidden = false;
+        $("error").textContent = status.error;
+      } else {
+        $("error").hidden = true;
+      }
+    }
+
+    async function refresh() {
+      render(await api("/api/status"));
+    }
+
+    $("trainBtn").onclick = async () => {
+      render(await api("/api/train", {
+        method: "POST",
+        body: JSON.stringify({
+          epochs: Number($("epochsInput").value),
+          learningRate: Number($("lrInput").value),
+        }),
+      }));
+    };
+
+    $("stopBtn").onclick = async () => {
+      render(await api("/api/train/stop", { method: "POST", body: "{}" }));
+    };
+
+    $("resetBtn").onclick = async () => {
+      render(await api("/api/reset", { method: "POST", body: "{}" }));
+      $("output").textContent = "—";
+    };
+
+    $("genBtn").onclick = async () => {
+      const data = await api("/api/generate", {
+        method: "POST",
+        body: JSON.stringify({
+          seed: $("seedInput").value,
+          length: Number($("lenInput").value),
+        }),
+      });
+      $("output").textContent = data.text;
+    };
+
+    $("corpusBtn").onclick = async () => {
+      render(await api("/api/corpus", {
+        method: "POST",
+        body: JSON.stringify({ text: $("corpusInput").value }),
+      }));
+    };
+
+    // default corpus shown in UI
+    $("corpusInput").value = `hello world. hello there. hello friend.
+the cat sat on the mat. the dog sat on the log.
+once upon a time there was a cat. once upon a time there was a dog.
+`;
+
+    refresh();
+    setInterval(refresh, 800);
+  </script>
+</body>
+</html>
